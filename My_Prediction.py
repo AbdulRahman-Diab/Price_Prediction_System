@@ -56,23 +56,23 @@ class Prediction:
 			if ct != 'NOI':
 				ct2_count = temp_tr_i.groupby('cat2')['cat2'].count()
 				ct2_count_dict: dict = ct2_count.to_dict()
-				d = {}
+				ct2_d = {}
 				for ct2_count in ct2_count_dict.keys():
 					if ct2_count_dict[ct2_count] > 5:
-						d[ct2_count] = ct2_count
+						ct2_d[ct2_count] = ct2_count
 					else:
-						d[ct2_count] = 'Others'
-				temp_tr_i['cat2'] = temp_tr_i['cat2'].map(d)
+						ct2_d[ct2_count] = 'Other'
+				temp_tr_i['cat2'] = temp_tr_i['cat2'].map(ct2_d)
 
 				ct3_count = temp_tr_i.groupby('cat3')['cat3'].count()
 				ct3_count_dict: dict = ct3_count.to_dict()
-				d = {}
+				ct3_d = {}
 				for ct3_count in ct3_count_dict.keys():
 					if ct3_count_dict[ct3_count] > 5:
-						d[ct3_count] = ct3_count
+						ct3_d[ct3_count] = ct3_count
 					else:
-						d[ct3_count] = 'Others'
-				temp_tr_i['cat3'] = temp_tr_i['cat3'].map(d)
+						ct3_d[ct3_count] = 'Other'
+				temp_tr_i['cat3'] = temp_tr_i['cat3'].map(ct3_d)
 
 				tr_ct2 = set(list(temp_tr_i['cat2']))
 				ts_ct2 = set(list(temp_ts_i['cat2']))
@@ -81,9 +81,10 @@ class Prediction:
 					if ct2 in tr_ct2:
 						ct2_dict[ct2] = ct2
 					else:
-						ct2_dict[ct2] = 'Others'
+						ct2_dict[ct2] = 'Other'
 
-				ct2_dict['no_info'] = 'Others'
+				ct2_dict['no_info'] = 'Other'
+				ct2_dict['Others'] = 'Other'
 				temp_ts_i['cat2'] = temp_ts_i['cat2'].map(ct2_dict)
 
 				tr_ct3 = set(list(temp_tr_i['cat3']))
@@ -93,30 +94,36 @@ class Prediction:
 					if ct3 in tr_ct3:
 						ct3_dict[ct3] = ct3
 					else:
-						ct3_dict[ct3] = 'Others'
+						ct3_dict[ct3] = 'Other'
 
-				ct3_dict['no_info'] = 'Others'
+				ct3_dict['no_info'] = 'Other'
+				ct3_dict['Others'] = 'Other'
 				temp_ts_i['cat3'] = temp_ts_i['cat3'].map(ct3_dict)
 
 				print(sorted(set(list(temp_tr_i['brand_name']))))
 
 				if ct == 'HAN':
-					vcf = {'item_condition_id': '0 + C(item_condition_id)', 'shipping': '0 + C(shipping)',
-					           'cat2': '0 + C(cat2)', 'cat3': '0 + C(cat3)'}
 					formula = 'logPrice ~ item_condition_id + shipping + cat2 + cat3'
+					# vcf = {'item_condition_id': 'C(item_condition_id)', 'shipping': 'C(shipping)',
+					#            'cat2': 'C(cat2)', 'cat3': 'C(cat3)'}
+					# temp_tr_i["grp"] = temp_tr_i["item_condition_id"].astype(str) + temp_tr_i["shipping"].astype(str) \
+					#                    + temp_tr_i["cat2"].astype(str) + temp_tr_i["cat3"].astype(str)
 
 				else:
-					vcf = {'item_condition_id': '0 + C(item_condition_id)', 'brand_name': '0 + C(brand_name)',
-					       'shipping': '0 + C(shipping)', 'cat2': '0 + C(cat2)', 'cat3': '0 + C(cat3)'}
-					formula = 'logPrice ~ item_condition_id + shipping + brand_name + cat2 + cat3'
+					formula = 'logPrice ~ item_condition_id + brand_name + shipping + cat2 + cat3'
+					# vcf = {'item_condition_id': 'C(item_condition_id)', 'brand_name': 'C(brand_name)',
+					#        'shipping': 'C(shipping)', 'cat2': 'C(cat2)', 'cat3': 'C(cat3)'}
+					# temp_tr_i["grp"] = temp_tr_i["item_condition_id"].astype(str) + temp_tr_i["brand_name"].astype(str) \
+					# 				+ temp_tr_i["shipping"].astype(str) + temp_tr_i["cat2"].astype(str) + temp_tr_i["cat3"].astype(str)
 
 			else:
-				vcf = {'item_condition_id': '0 + C(item_condition_id)', 'brand_name': '0 + C(brand_name)',
-				           'shipping': '0 + C(shipping)'}
-				formula = 'logPrice ~ item_condition_id + shipping + brand_name'
+				formula = 'logPrice ~ item_condition_id + brand_name + shipping'
+				# vcf = {'item_condition_id': 'C(item_condition_id)', 'brand_name': 'C(brand_name)',
+				#            'shipping': 'C(shipping)'}
+				# temp_tr_i["grp"] = temp_tr_i["item_condition_id"].astype(str) + temp_tr_i["brand_name"].astype(str)\
+				#                    + temp_tr_i["shipping"].astype(str)
 
-			md = sm.MixedLM.from_formula('logPrice ~ 1', vc_formula=vcf, groups=temp_tr_i['cat1'], data=temp_tr_i)
-
+			md = sm.MixedLM.from_formula(formula, groups=temp_tr_i['cat1'], data=temp_tr_i)
 
 			self.model_dict[ct] = md.fit()
 			print(self.model_dict[ct].summary())
@@ -144,14 +151,92 @@ class Prediction:
 
 	# #####################################################################################################################
 	def predicted_one_value(self, values_dict: dict):
+		print('Load model files')
+		ct = values_dict['cat1']
+		self.model_dict[ct] = sm.load('.\\model\\longley_results_' + ct + '.pickle')
+
+		values_dict['test_id'] = 0
+		values_list = [[values_dict['test_id'], values_dict['cat1'], values_dict['cat2'], values_dict['cat3'],
+		     values_dict['brand_name'], values_dict['item_condition_id'], values_dict['shipping']]]
+
+		parameters = pd.DataFrame(values_list, columns=['test_id', 'cat1', 'cat2', 'cat3', 'brand_name', 'item_condition_id', 'shipping'])
+		# cat_df = pd.read_csv(".\\cat_table\\cat_df.csv")
+		# self.tidy_up_test_data(parameters, cat_df)
+		print(parameters)
+		parameters['log_price'] = self.model_dict[ct].predict(parameters)
+		result = float(parameters[parameters['test_id'] == 0]['log_price'])
+		r_value = str(math.exp(result) - 1)
+		print(r_value)
+		return r_value
+
+	# ##################################################################################################################
+	def prediction_df(self, df_ts):
+		print('Load model files')
 		for ct in self.cat1_list:
 			self.model_dict[ct] = sm.load('.\\model\\longley_results_' + ct + '.pickle')
 
-		parameters = pd.Series(values_dict)
-		result = self.model_dict[values_dict['cat1']].predict(parameters)
-		r_value = str(math.exp(float(list(result)[1])) - 1)
-		print(r_value)
-		return r_value
+		print(self.cat1_list)
+		p_result = pd.DataFrame()
+
+		for ct in self.cat1_list:
+			print("start get_prediction_model for [ " + ct + " ]")
+			temp_ts_i = df_ts[df_ts['cat1'] == ct]
+			temp_ct_i = self.cat_df[self.cat_df['cat1'] == ct]
+
+			if ct != 'HAN':
+				# test brand_name not in train --> 'Others'
+				ct_b = set(list(temp_ct_i['brand_name']))
+				ts_b = set(list(temp_ts_i['brand_name']))
+				b_dict = {}
+				for b in ts_b:
+					if b in ct_b:
+						b_dict[b] = b
+					else:
+						b_dict[b] = 'Others'
+
+				b_dict['no_info'] = 'Others'
+				temp_ts_i['brand_name'] = temp_ts_i['brand_name'].map(b_dict)
+
+			if ct != 'NOI':
+				tr_ct2 = set(list(temp_ct_i['cat2']))
+				ts_ct2 = set(list(temp_ts_i['cat2']))
+				ct2_dict = {}
+				for ct2 in ts_ct2:
+					if ct2 in tr_ct2:
+						ct2_dict[ct2] = ct2
+					else:
+						ct2_dict[ct2] = 'Other'
+
+				ct2_dict['no_info'] = 'Other'
+				ct2_dict['Others'] = 'Other'
+				temp_ts_i['cat2'] = temp_ts_i['cat2'].map(ct2_dict)
+
+				tr_ct3 = set(list(temp_ct_i['cat3']))
+				ts_ct3 = set(list(temp_ts_i['cat3']))
+				ct3_dict = {}
+				for ct3 in ts_ct3:
+					if ct3 in tr_ct3:
+						ct3_dict[ct3] = ct3
+					else:
+						ct3_dict[ct3] = 'Other'
+
+				ct3_dict['no_info'] = 'Other'
+				ct3_dict['Others'] = 'Other'
+				temp_ts_i['cat3'] = temp_ts_i['cat3'].map(ct3_dict)
+
+			start_time = time.time()
+			temp_ts_i["logPrice"] = self.model_dict[ct].predict(temp_ts_i)
+			p_result = p_result.append(temp_ts_i)
+			print(p_result)
+			print("set_predicted_result for [ " + ct + " ] -- %.6f sec --" % (time.time() - start_time))
+
+		def exp_fun(x):
+			return math.exp(x) - 1
+
+		p_result['predicted_price'] = p_result['logPrice'].apply(exp_fun)
+		p_result.sort_values(by=[p_result.columns[0]])
+		print("prediction finished")
+		return p_result
 
 	# ##################################################################################################################
 	def tidy_up_train_data(self, df: DataFrame):
@@ -273,6 +358,7 @@ class Prediction:
 				b_dict[b] = b
 
 		b_dict['no_info'] = 'Others'
+		b_dict['Other'] = 'Others'
 		df['brand_name'] = df['brand_name'].map(b_dict)
 
 		print("Replace brand name if not in pop_brand as `Others' -- %.6f sec --" % (time.time() - start_time))
