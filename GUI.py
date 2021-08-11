@@ -63,6 +63,14 @@ class Ui_Dialog(object):
         self.pushButton_Run.setGeometry(QtCore.QRect(520, 140, 75, 23))
         self.pushButton_Run.setObjectName("pushButton_Run")
 
+        self.pushButton_Run_2 = QtWidgets.QPushButton(Dialog)
+        self.pushButton_Run_2.setGeometry(QtCore.QRect(20, 250, 101, 23))
+        self.pushButton_Run_2.setObjectName("pushButton_Run_2")
+
+        self.pushButton_Run_3 = QtWidgets.QPushButton(Dialog)
+        self.pushButton_Run_3.setGeometry(QtCore.QRect(472, 250, 120, 23))
+        self.pushButton_Run_3.setObjectName("pushButton_Run_3")
+
         self.tableView = QtWidgets.QTableView(Dialog)
         self.tableView.setGeometry(QtCore.QRect(20, 290, 571, 211))
         self.tableView.setObjectName("tableView")
@@ -114,10 +122,6 @@ class Ui_Dialog(object):
         self.label_8.setGeometry(QtCore.QRect(530, 190, 51, 16))
         self.label_8.setObjectName("label_8")
 
-        self.pushButton_Run_2 = QtWidgets.QPushButton(Dialog)
-        self.pushButton_Run_2.setGeometry(QtCore.QRect(20, 250, 101, 23))
-        self.pushButton_Run_2.setObjectName("pushButton_Run_2")
-
         self.label_10 = QtWidgets.QLabel(Dialog)
         self.label_10.setGeometry(QtCore.QRect(20, 160, 571, 20))
         self.label_10.setObjectName("label_10")
@@ -142,12 +146,14 @@ class Ui_Dialog(object):
         self.pushButton_out.setText(_translate("Dialog", "Browse"))
         self.pushButton_Run.setText(_translate("Dialog", "Start Train"))
         self.pushButton_Run_2.setText(_translate("Dialog", "Predicted value"))
+        self.pushButton_Run_3.setText(_translate("Dialog", "Predicted new test file"))
 
         self.pushButton_tr.clicked.connect(self.pushButton_tr_handler)
         self.pushButton_ts.clicked.connect(self.pushButton_ts_handler)
         self.pushButton_out.clicked.connect(self.pushButton_out_handler)
         self.pushButton_Run.clicked.connect(self.start_new_predicted)
-        self.pushButton_Run_2.clicked.connect(self.predicted_value)
+        self.pushButton_Run_2.clicked.connect(self.start_predicted_value)
+        self.pushButton_Run_3.clicked.connect(self.start_predicted_df)
 
         self.updateCat1()
         self.comboBox_ship.addItem('_')
@@ -254,75 +260,75 @@ class Ui_Dialog(object):
             df_test = pd.read_csv(self.ts_path, sep='\t')
         except:
             print('File read Error')
+            self.app_btn_enable()
             return
 
-        try:
-            train_1 = p.tidy_up_train_data(df_train.head(700000))
-            test_1 = p.tidy_up_test_data(df_test, train_1)
-            result = p.prediction(train_1, test_1)
-        except:
-            print('Error in prediction')
-            return
+        train_1 = p.tidy_up_train_data(df_train)
+        test_1 = p.tidy_up_test_data(df_test, train_1)
+        result = p.prediction(train_1, test_1)
 
         try:
             result.to_csv(self.out_path.replace('/', '\\') + "/predicted_values.csv")
         except:
             print('File write Error')
+            self.app_btn_enable()
             return
 
-        self.loadFile_out("/predicted_values.csv")
         self.app_btn_enable()
-
-    def predicted_value(self):
-        predicted_value_thread = threading.Thread(target=self.start_predicted_value)
-        predicted_value_thread.start()
+        self.loadFile_out("/predicted_values.csv")
 
     def start_predicted_value(self):
-        d = {}
-        ct1 = str(self.comboBox_ct1.currentText())
-        ct2 = str(self.comboBox_ct2.currentText())
-        ct3 = str(self.comboBox_ct3.currentText())
-        brand = str(self.comboBox_brand.currentText())
-        shipping = str(self.comboBox_ship.currentText())
-        cond = str(self.comboBox_cond.currentText())
+        predicted_value_thread = threading.Thread(target=self.predicted_value)
+        predicted_value_thread.start()
 
-        self.app_btn_disable()
+    def predicted_value(self):
+        try:
+            d = {}
+            ct1 = str(self.comboBox_ct1.currentText())
+            ct2 = str(self.comboBox_ct2.currentText())
+            ct3 = str(self.comboBox_ct3.currentText())
+            brand = str(self.comboBox_brand.currentText())
+            shipping = int(self.comboBox_ship.currentText())
+            cond = int(self.comboBox_cond.currentText())
 
-        if ct1 != '_':
-            d['cat1'] = ct1
-        else:
-            d['cat1'] = 'Others'
-        if ct2 != '_':
-            d['cat2'] = ct2
-        else:
-            d['cat2'] = 'Others'
-        if ct3 != '_':
-            d['cat3'] = ct3
-        else:
-            d['cat3'] = 'Others'
-        if brand != '_':
-            d['brand_name'] = brand
-        else:
-            d['brand_name'] = 'Others'
-        if cond != '_':
-            d['item_condition_id'] = cond
-        else:
-            d['item_condition_id'] = '5'
-        if shipping != '_':
-            d['shipping'] = shipping
-        else:
-            d['shipping'] = '0'
+            self.app_btn_disable()
 
-        p = Prediction()
-        result = p.predicted_one_value(d)
-        self.label_p_price.setText(result)
+            if ct1 != '_':
+                d['cat1'] = ct1
+            else:
+                d['cat1'] = 'Other'
+            if ct2 != '_':
+                d['cat2'] = ct2
+            else:
+                d['cat2'] = 'Other'
+            if ct3 != '_':
+                d['cat3'] = ct3
+            else:
+                d['cat3'] = 'Other'
+            if brand != '_':
+                d['brand_name'] = brand
+            else:
+                d['brand_name'] = 'Others'
+            if cond != '_':
+                d['item_condition_id'] = cond
+            else:
+                d['item_condition_id'] = 5
+            if shipping != '_':
+                d['shipping'] = shipping
+            else:
+                d['shipping'] = 0
 
-        df = self.predicted_for_brands(d)
-        self.load_df_to_table(df)
-        self.app_btn_enable()
+            p = Prediction()
+            result = p.predicted_one_value(d)
+            self.label_p_price.setText(result)
 
-    def start_predicted_df(self):
-        pass
+            # df = self.predicted_for_brands(d)
+            # self.load_df_to_table(df)
+        except:
+            print('Error in predicted_value(), predicted_value() not complete')
+        finally:
+            self.app_btn_enable()
+
 
     def predicted_for_brands(self, d):
         df = pd.DataFrame(columns=['cat1', 'cat2', 'cat3', 'brand_name', 'Price'])
@@ -341,9 +347,31 @@ class Ui_Dialog(object):
             df = df.append(a_series, ignore_index=True)
         return df
 
+    def start_predicted_df(self):
+        predicted_df_thread = threading.Thread(target=self.predicted_df)
+        predicted_df_thread.start()
+
+    def predicted_df(self):
+        self.app_btn_disable()
+        self.cat_df = pd.read_csv(".\\cat_table\\cat_df.csv")
+        p = Prediction()
+        df_test = pd.read_csv(self.ts_path, sep='\t')
+        test_1 = p.tidy_up_test_data(df_test, self.cat_df)
+        result = p.prediction_df(test_1)
+        try:
+            result.to_csv(self.out_path.replace('/', '\\') + "/predicted_values.csv")
+        except:
+            print('File write Error')
+            self.app_btn_enable()
+            return
+
+        self.app_btn_enable()
+        self.loadFile_out("/predicted_values.csv")
+
     def app_btn_disable(self):
         self.pushButton_Run.setEnabled(False)
         self.pushButton_Run_2.setEnabled(False)
+        self.pushButton_Run_3.setEnabled(False)
         self.pushButton_tr.setEnabled(False)
         self.pushButton_ts.setEnabled(False)
         self.pushButton_out.setEnabled(False)
@@ -357,6 +385,7 @@ class Ui_Dialog(object):
     def app_btn_enable(self):
         self.pushButton_Run.setDisabled(False)
         self.pushButton_Run_2.setDisabled(False)
+        self.pushButton_Run_3.setDisabled(False)
         self.pushButton_tr.setDisabled(False)
         self.pushButton_ts.setDisabled(False)
         self.pushButton_out.setDisabled(False)
